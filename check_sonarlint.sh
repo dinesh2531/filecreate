@@ -1,15 +1,9 @@
 #!/bin/bash
 
-# Unified script to check if SonarLint is installed for various IDEs
+# This script validates SonarLint installation for different IDEs across various operating systems
 
-# Function to display an error message and exit
-function error_exit {
-    echo "ERROR: $1"
-    exit 1
-}
-
-# Function to check SonarLint installation for different IDEs
-check_sonarlint() {
+# Function to handle SonarLint check for Unix-based systems (macOS/Linux)
+check_sonarlint_unix() {
     local ide=$1
     local sonar_path
 
@@ -27,26 +21,74 @@ check_sonarlint() {
             sonar_path=$(find ~/eclipse/plugins -name "org.sonarlint.eclipse*" 2>/dev/null)
             ;;
         "visualstudio")
-            echo "Checking SonarLint installation for Visual Studio..."
-            sonar_path=$(find "$LOCALAPPDATA\\Microsoft\\VisualStudio" -name "SonarLint.VisualStudio*.dll" 2>/dev/null)
+            echo "Checking SonarLint installation for Visual Studio (macOS/Linux)..."
+            sonar_path=$(find "$HOME/Library/Application Support/VisualStudio" -name "SonarLint.VisualStudio*.dll" 2>/dev/null)
             ;;
         *)
-            error_exit "Unsupported or unspecified IDE. Please use one of: vscode, intellij, eclipse, visualstudio."
+            echo "ERROR: Unsupported IDE specified for Unix-based system."
+            exit 1
             ;;
     esac
 
     if [ -z "$sonar_path" ]; then
-        error_exit "SonarLint is not installed for $ide. Please install SonarLint to proceed."
+        echo "ERROR: SonarLint is not installed for $ide. Please install SonarLint to proceed."
+        exit 1
     else
         echo "SonarLint is installed for $ide."
     fi
 }
 
-# Check if an IDE was provided as an argument
-if [ -z "$1" ]; then
-    echo "Usage: $0 [vscode|intellij|eclipse|visualstudio]"
-    exit 1
-fi
+# Function to handle SonarLint check for Windows (using PowerShell)
+check_sonarlint_windows() {
+    echo "Running SonarLint check on Windows..."
+    powershell -Command "
+    param([string]$ide)
+    switch ($ide) {
+        'vscode' {
+            \$path = Test-Path -Path \"\$env:USERPROFILE\\.vscode\\extensions\\sonarlint*\"
+            if (-not \$path) { Write-Host 'ERROR: SonarLint is not installed for VS Code. Please install SonarLint to proceed.'; exit 1 }
+            else { Write-Host 'SonarLint is installed for VS Code.' }
+        }
+        'intellij' {
+            \$path = Test-Path -Path \"\$env:APPDATA\\JetBrains\\sonarlint*\"
+            if (-not \$path) { Write-Host 'ERROR: SonarLint is not installed for IntelliJ IDEA. Please install SonarLint to proceed.'; exit 1 }
+            else { Write-Host 'SonarLint is installed for IntelliJ IDEA.' }
+        }
+        'eclipse' {
+            \$path = Test-Path -Path \"\$env:USERPROFILE\\eclipse\\plugins\\org.sonarlint.eclipse*\"
+            if (-not \$path) { Write-Host 'ERROR: SonarLint is not installed for Eclipse. Please install SonarLint to proceed.'; exit 1 }
+            else { Write-Host 'SonarLint is installed for Eclipse.' }
+        }
+        'visualstudio' {
+            \$path = Test-Path -Path \"\$env:LOCALAPPDATA\\Microsoft\\VisualStudio\\SonarLint.VisualStudio*.dll\"
+            if (-not \$path) { Write-Host 'ERROR: SonarLint is not installed for Visual Studio. Please install SonarLint to proceed.'; exit 1 }
+            else { Write-Host 'SonarLint is installed for Visual Studio.' }
+        }
+        default {
+            Write-Host 'ERROR: Unsupported IDE specified for Windows.'
+            exit 1
+        }
+    }
+    " -ide $1
+}
 
-# Run the SonarLint check for the specified IDE
-check_sonarlint $1
+# Main function to detect OS and run appropriate checks
+main() {
+    local ide=$1
+
+    if [ -z "$ide" ]; then
+        echo "Usage: $0 [vscode|intellij|eclipse|visualstudio]"
+        exit 1
+    fi
+
+    if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "darwin"* ]]; then
+        check_sonarlint_unix $ide
+    elif [[ "$OSTYPE" == "cygwin" || "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+        check_sonarlint_windows $ide
+    else
+        echo "ERROR: Unsupported operating system."
+        exit 1
+    fi
+}
+
+main $1
